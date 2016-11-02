@@ -1,10 +1,4 @@
 
-
-//***************************** Ecran 1602 i2c ************************************************
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-
-
 // EXEMPLE 1602 i2c SUR http://blog.f8asb.com/2014/03/01/mise-en-oeuvre-i2c-vers-lcd-carte-chinoise-sur-arduino/
 // EXEMPLE clavier SUR http://www.mon-club-elec.fr/pmwiki_mon_club_elec/pmwiki.php?n=MAIN.ArduinoExpertLCDClavierAppuiTouche
 
@@ -13,10 +7,12 @@
 ** based on https://bitbucket.org/celem/sainsmart-i2c-lcd/src/3adf8e0d2443/sainlcdtest.ino
 ** This example uses F Malpartida's NewLiquidCrystal library. Obtain from:
 ** https://bitbucket.org/fmalpartida/new-liquidcrystal
-
 ** NOTE: Tested on Arduino Uno whose I2C pins are A4==SDA, A5==SCL
 
 */
+//***************************** Ecran 1602 i2c ************************************************
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 #include <Wire.h>
 #include <LCD.h>
@@ -92,7 +88,6 @@ Keypad clavier = Keypad( makeKeymap(touches), BrochesLignes, BrochesColonnes, LI
 // les broches de colonnes sont automatiquement configurées en SORTIE
 
 
-
 //*****************************DS18B20************************************************
 /*#include <OneWire.h>
 #include <DallasTemperature.h>
@@ -112,14 +107,21 @@ const int  resolution = 12;
 #include <Stdio.h>*/
 
 
-//*****************************DTH22************************************************
+//*****************************DTH22**************************************************
 
 #include "DHT.h"
 
 DHT dht;
-//*****************************Thermostat************************************************
+//*****************************Thermostat**********************************************
 int relais = 10 ;
-float consigne = 21 ;
+float consigne = 24 ;
+
+//********************************AUTRE ***********************************************
+int ligne = 0;
+int colonne = 0;
+int saisie = 0; 
+int page =0 ;
+int front ;  // memoire de front montant
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -128,18 +130,16 @@ void setup()
 {
 
   //***************************** Ecran 1602 i2c *************************************
- 
 
-  
   lcd.begin (16, 2); //  <<----- Mon LCD est un 16x2
 
   // Switch on the backlight
   lcd.setBacklightPin(BACKLIGHT_PIN, POSITIVE);
   lcd.setBacklight(HIGH);
  
-
- 
   lcd.home (); // go home -ramène le curseur à l'origine
+
+  lcd.blink() ;
 
 
   //***************************** Caracteres spéciaux  *********************************
@@ -165,80 +165,110 @@ dht.setup(8); // data pin 8
 
 pinMode(relais, OUTPUT);
 
-
 }
+
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 void loop()
 {
-    delay(dht.getMinimumSamplingPeriod());
+    //delay(dht.getMinimumSamplingPeriod());
     
     float humidity = dht.getHumidity();
     float temperature = dht.getTemperature();
 
     
- /* sensors.requestTemperatures(); // Envoi de la demande de température
+  /* sensors.requestTemperatures(); // Envoi de la demande de température DS18B20
   float temp0 = (sensors.getTempCByIndex(0));
   int t0 = (temp0 - (int)temp0) * 100 ;
   //Serial.println(temp0); // Le 0 corresponant au premier esclave trouvé .*/
 
-
-  touche = clavier.getKey(); // lecture de la touche appuyée
-
   if (consigne >= temperature )digitalWrite (relais,HIGH);
   else digitalWrite (relais,LOW);
 
+  touche = clavier.getKey(); // lecture de la touche appuyée
 
-  switch (touche)
- 
-case "A" :
+  if (page==1){
+    if (front==0)colonne=0; 
+    if ((touche == '0') || (touche == '1') || (touche == '2')|| (touche == '3')
+      || (touche == '4')|| (touche == '5')|| (touche == '6')|| (touche == '7')
+      || (touche == '8')|| (touche == '9')){ //  on a tapé un chiffre
+        
+        lcd.setCursor(colonne, 1);
+        lcd.print(touche);
+        colonne=colonne+1;
+        front = 1;
+
+    saisie = saisie*10+(int (touche)-48); 
+    consigne = saisie ;  
+   }
+  }
+  switch (touche){
+case'*':
+    {//on efface le dernier chiffre
+
+      if (colonne > 0){
+        colonne = colonne - 1;
+      }
+      else {
+          ligne = !(ligne);   
+          colonne = 15;
+        }
+
+      lcd.setCursor(colonne, ligne);
+      lcd.print(' ');
+       break ;
+    }
+    
+
+case '#' :
   
     lcd.clear(); // efface écran si appui # sinon  affiche touche
-  
-
-case "C" :
- 
+    saisie = 0;
+    page=0;
+    front =0 ;
+     break ;
+     
+case 'A' :
 {
     lcd.clear();
-    lcd.setCursor(0, 1);
-    lcd.print("Consigne :");
+    lcd.setCursor(0, 0);
+    lcd.print("Consigne:");
+     lcd.setCursor(0, 1);
     lcd.print(consigne);
     lcd.write ((uint8_t) 0);//affiche le caractère de l'adresse 0
     lcd.print("C");
-} 
-   
-/*  else if ((touche != NO_KEY) && (touche != '#')) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("touche: ");
-    lcd.setCursor(9, 0);
-    lcd.print(touche);
+    page=1;
+     break ;
+  }  
 
+      
+ 
+   
+/*  case 'NO_KEY' ;
+    lcd.print(touche);
     delay(100); // pause entre 2 appuis
   } */
   
  
- case "B" :
+ case 'B' :
   {
     lcd.clear();
-
-    lcd.setCursor(0, 1);
+    lcd.setCursor(0, 0);
     lcd.print("Humidite:  ");
     lcd.print(humidity, 1);
     lcd.print("%");
-    delay(1000);
  
     lcd.setCursor(0, 1);
     lcd.print("temperat.:");
     lcd.print(temperature, 1);
     lcd.write ((uint8_t) 0);//affiche le caractère de l'adresse 0
     lcd.print("C");
-     delay(1000);
- 
+    page=2;    
+    break ;
   }
 }
-
+}
 // --- Fin programme ---
 
 //000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -290,8 +320,8 @@ case "C" :
 // written by David A. Mellis
 // based on code by Rob Faludi http://www.faludi.com
 // Source : http://www.arduino.cc/playground/Code/AvailableMemory
-
-int ramDispo() {
+//
+/*int ramDispo() {
   int size = 2048; // Use 2048 with ATmega328, 8192 avec 2560
   byte *buf;
 
@@ -300,6 +330,7 @@ int ramDispo() {
   free(buf);
   return size; // renvoie la taille de la RAM disponible
 }
+*/
 //
 //
 //
